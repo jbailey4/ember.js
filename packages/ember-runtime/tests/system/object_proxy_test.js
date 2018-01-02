@@ -1,10 +1,12 @@
 import {
   addObserver,
-  removeObserver,
   computed,
-  isWatching
+  get,
+  isWatching,
+  removeObserver
 } from 'ember-metal';
 import { testBoth } from 'internal-test-helpers';
+import { MANDATORY_GETTER } from 'ember/features';
 import ObjectProxy from '../../system/object_proxy';
 
 QUnit.module('ObjectProxy');
@@ -57,6 +59,32 @@ testBoth('should proxy properties to content', function(get, set, assert) {
   assert.equal(get(proxy, 'firstName'), 'Yehuda', 'proxy should reflect updated content');
   assert.equal(get(proxy, 'lastName'), 'Katz', 'proxy should reflect updated content');
 });
+
+QUnit.test('getting proxied properties with Ember.get should work', assert => {
+  let proxy = ObjectProxy.create({
+    content: {
+      foo: 'FOO'
+    }
+  });
+
+  assert.equal(get(proxy, 'foo'), 'FOO');
+
+  // ...more steps...
+});
+
+if (MANDATORY_GETTER) {
+  QUnit.test('getting proxied properties with [] should be an error', () => {
+    let proxy = ObjectProxy.create({
+      content: {
+        foo: 'FOO'
+      }
+    });
+
+    expectAssertion(() => proxy.foo, /some message/);
+
+    // ...more steps...
+  });
+}
 
 testBoth('should work with watched properties', function(get, set, assert) {
   let content1 = { firstName: 'Tom', lastName: 'Dale' };

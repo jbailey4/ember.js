@@ -37,7 +37,7 @@ import { validatePropertyInjections } from '../inject';
 import { assert } from 'ember-debug';
 import { DEBUG } from 'ember-env-flags';
 import { ENV } from 'ember-environment';
-import { MANDATORY_SETTER } from 'ember/features';
+import { MANDATORY_GETTER, MANDATORY_SETTER } from 'ember/features';
 
 const schedule = run.schedule;
 const applyMixin = Mixin._apply;
@@ -543,6 +543,14 @@ CoreObject.PrototypeMixin = Mixin.create({
 
 CoreObject.PrototypeMixin.ownerConstructor = CoreObject;
 
+let wrapInMandatoryGetterProxy;
+
+if (MANDATORY_GETTER) {
+  wrapInMandatoryGetterProxy = function(obj) {
+    return obj;
+  };
+}
+
 CoreObject.__super__ = null;
 
 let ClassMixinProps = {
@@ -704,7 +712,14 @@ let ClassMixinProps = {
     if (args.length > 0) {
       this._initProperties(args);
     }
-    return new C();
+
+    if (MANDATORY_GETTER) {
+      let obj = new C();
+      let isProxy = (typeof obj.unknownProperty === 'function');
+      return isProxy ? wrapInMandatoryGetterProxy(obj) : obj;
+    } else {
+      return new C();
+    }
   },
 
   /**

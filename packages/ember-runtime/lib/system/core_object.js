@@ -12,9 +12,11 @@ import {
   GUID_KEY_PROPERTY,
   symbol,
   NAME_KEY,
-  GUID_KEY
+  GUID_KEY,
+  HAS_NATIVE_PROXY
 } from 'ember-utils';
 import {
+  PROXY_CONTENT,
   descriptorFor,
   get,
   meta,
@@ -37,7 +39,7 @@ import { validatePropertyInjections } from '../inject';
 import { assert } from 'ember-debug';
 import { DEBUG } from 'ember-env-flags';
 import { ENV } from 'ember-environment';
-import { MANDATORY_GETTER, MANDATORY_SETTER } from 'ember/features';
+import { MANDATORY_GETTER, MANDATORY_SETTER, EMBER_METAL_ES5_GETTERS } from 'ember/features';
 
 const schedule = run.schedule;
 const applyMixin = Mixin._apply;
@@ -55,6 +57,33 @@ function makeCtor() {
 
   class Class {
     constructor() {
+      let self = this;
+
+      if (MANDATORY_GETTER && EMBER_METAL_ES5_GETTERS && HAS_NATIVE_PROXY && typeof self.unknownProperty === 'function') {
+        let messageFor = (obj, property) => {
+          return `You attempted to access the \`${String(property)}\` property (of ${obj}).\n` +
+            `Since Ember 3.1, this is usually fine as you no longer need to use \`.get()\`\n` +
+            `to access computed properties. However, in this case, the object in question\n` +
+            `is a special kind of Ember object (a proxy). Therefore, it is still necessary\n` +
+            `to use \`.get('${String(property)}')\` in this case.`;
+          };
+
+        /* globals Proxy Reflect */
+        self = new Proxy(this, {
+          get(target, property, receiver) {
+            if (property === PROXY_CONTENT) {
+              return target;
+            } else if (typeof property === 'symbol' || property in target) {
+              return Reflect.get(target, property, receiver);
+            }
+
+            let value = target.unknownProperty.call(receiver, property);
+
+            assert(messageFor(receiver, property), value === undefined);
+          }
+        });
+      }
+
       if (!wasApplied) {
         Class.proto(); // prepare prototype...
       }
@@ -63,10 +92,10 @@ function makeCtor() {
         initProperties = [arguments[0]];
       }
 
-      this.__defineNonEnumerable(GUID_KEY_PROPERTY);
-      let m = meta(this);
+      self.__defineNonEnumerable(GUID_KEY_PROPERTY);
+      let m = meta(self);
       let proto = m.proto;
-      m.proto = this;
+      m.proto = self;
 
       if (initFactory) {
         m.factory = initFactory;
@@ -77,8 +106,8 @@ function makeCtor() {
         let props = initProperties;
         initProperties = null;
 
-        let concatenatedProperties = this.concatenatedProperties;
-        let mergedProperties = this.mergedProperties;
+        let concatenatedProperties = self.concatenatedProperties;
+        let mergedProperties = self.mergedProperties;
         let hasConcatenatedProps = concatenatedProperties && concatenatedProperties.length > 0;
         let hasMergedProps = mergedProperties && mergedProperties.length > 0;
 
@@ -121,14 +150,14 @@ function makeCtor() {
             assert(
               '`actions` must be provided at extend time, not at create time, ' +
               'when Ember.ActionHandler is used (i.e. views, controllers & routes).',
-              !((keyName === 'actions') && ActionHandler.detect(this))
+              !((keyName === 'actions') && ActionHandler.detect(self))
             );
 
-            let possibleDesc = descriptorFor(this, keyName, m);
+            let possibleDesc = descriptorFor(self, keyName, m);
             let isDescriptor = possibleDesc !== undefined;
 
             if (!isDescriptor) {
-              let baseValue = this[keyName];
+              let baseValue = self[keyName];
 
               if (hasConcatenatedProps && concatenatedProperties.indexOf(keyName) > -1) {
                 if (baseValue) {
@@ -144,14 +173,14 @@ function makeCtor() {
             }
 
             if (isDescriptor) {
-              possibleDesc.set(this, keyName, value);
-            } else if (typeof this.setUnknownProperty === 'function' && !(keyName in this)) {
-              this.setUnknownProperty(keyName, value);
+              possibleDesc.set(self, keyName, value);
+            } else if (typeof self.setUnknownProperty === 'function' && !(keyName in self)) {
+              self.setUnknownProperty(keyName, value);
             } else {
               if (MANDATORY_SETTER) {
-                defineProperty(this, keyName, null, value); // setup mandatory setter
+                defineProperty(self, keyName, null, value); // setup mandatory setter
               } else {
-                this[keyName] = value;
+                self[keyName] = value;
               }
             }
           }
@@ -159,16 +188,18 @@ function makeCtor() {
       }
 
       if (ENV._ENABLE_BINDING_SUPPORT) {
-        Mixin.finishPartial(this, m);
+        Mixin.finishPartial(self, m);
       }
 
-      this.init(...arguments);
+      self.init(...arguments);
 
-      this[POST_INIT]();
+      self[POST_INIT]();
 
       m.proto = proto;
       finishChains(m);
-      sendEvent(this, 'init', undefined, undefined, undefined, m);
+      sendEvent(self, 'init', undefined, undefined, undefined, m);
+
+      return self;
     }
 
     static willReopen() {
@@ -543,14 +574,6 @@ CoreObject.PrototypeMixin = Mixin.create({
 
 CoreObject.PrototypeMixin.ownerConstructor = CoreObject;
 
-let wrapInMandatoryGetterProxy;
-
-if (MANDATORY_GETTER) {
-  wrapInMandatoryGetterProxy = function(obj) {
-    return obj;
-  };
-}
-
 CoreObject.__super__ = null;
 
 let ClassMixinProps = {
@@ -713,13 +736,7 @@ let ClassMixinProps = {
       this._initProperties(args);
     }
 
-    if (MANDATORY_GETTER) {
-      let obj = new C();
-      let isProxy = (typeof obj.unknownProperty === 'function');
-      return isProxy ? wrapInMandatoryGetterProxy(obj) : obj;
-    } else {
-      return new C();
-    }
+    return new C();
   },
 
   /**

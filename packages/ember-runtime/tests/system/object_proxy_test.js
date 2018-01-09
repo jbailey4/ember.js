@@ -5,8 +5,9 @@ import {
   isWatching,
   removeObserver
 } from 'ember-metal';
+import { HAS_NATIVE_PROXY } from 'ember-utils';
 import { testBoth } from 'internal-test-helpers';
-import { MANDATORY_GETTER } from 'ember/features';
+import { MANDATORY_GETTER, EMBER_METAL_ES5_GETTERS } from 'ember/features';
 import ObjectProxy from '../../system/object_proxy';
 
 QUnit.module('ObjectProxy');
@@ -72,7 +73,31 @@ QUnit.test('getting proxied properties with Ember.get should work', assert => {
   // ...more steps...
 });
 
-if (MANDATORY_GETTER) {
+
+QUnit.test(`JSON.stringify doens't assert`, assert => {
+  let proxy = ObjectProxy.create({
+    content: {
+      foo: 'FOO'
+    }
+  });
+
+  assert.equal(JSON.stringify(proxy), JSON.stringify({ content: { foo: 'FOO' } }));
+});
+
+QUnit.test(`tricky case`, assert => {
+  let proxy = ObjectProxy.create({
+    toJSON: undefined,
+    content: {
+      toJSON() {
+        return 'hello';
+      }
+    }
+  });
+
+  assert.equal(JSON.stringify(proxy), JSON.stringify({ content: 'hello' }));
+});
+
+if (MANDATORY_GETTER && EMBER_METAL_ES5_GETTERS && HAS_NATIVE_PROXY) {
   QUnit.test('getting proxied properties with [] should be an error', () => {
     let proxy = ObjectProxy.create({
       content: {
@@ -80,9 +105,7 @@ if (MANDATORY_GETTER) {
       }
     });
 
-    expectAssertion(() => proxy.foo, /some message/);
-
-    // ...more steps...
+    expectAssertion(() => proxy.foo, /\.get\('foo'\)/);
   });
 }
 

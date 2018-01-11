@@ -284,10 +284,12 @@ export default EmberObject.extend(MutableArray, {
   },
 
   arrangedContentArrayWillChange(item, idx, removedCnt, addedCnt) {
+    console.log('arrangedContentArrayWillChange');
     this.arrayContentWillChange(idx, removedCnt, addedCnt);
   },
 
   arrangedContentArrayDidChange(item, idx, removedCnt, addedCnt) {
+    console.log('arrangedContentArrayDidChange');
     this.arrayContentDidChange(idx, removedCnt, addedCnt);
   },
 

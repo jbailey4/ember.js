@@ -5,33 +5,37 @@ import { A } from '../../../system/native_array';
 QUnit.module('ArrayProxy - array observers');
 
 QUnit.test('addArrayObserver works correctly when mutating its content', function(assert) {
-  assert.expect(2);
+  assert.expect(4);
 
-  let proxy = ArrayProxy.create({ content: A() });
+  let proxy = ArrayProxy.create({ content: A([1]) });
 
   proxy.addArrayObserver({
-    arrayWillChange(proxy) {
-      assert.deepEqual(proxy.toArray(), []);
+    arrayWillChange(proxy, startIdx, removeAmt, addAmt) {
+      assert.deepEqual(proxy.toArray(), [1]);
+      assert.deepEqual([startIdx, removeAmt, addAmt], [0, 1, 3]);
     },
-    arrayDidChange(proxy) {
+    arrayDidChange(proxy, startIdx, removeAmt, addAmt) {
       assert.deepEqual(proxy.toArray(), ['a', 'b', 'c']);
+      assert.deepEqual([startIdx, removeAmt, addAmt], [0, 1, 3]);
     }
   });
 
-  proxy.get('content').replace(0, 0, ['a', 'b', 'c']);
+  proxy.get('content').replace(0, 1, ['a', 'b', 'c']);
 });
 
 QUnit.test('addArrayObserver works correctly when setting a new content', function(assert) {
-  assert.expect(2);
+  assert.expect(4);
 
-  let proxy = ArrayProxy.create({ content: [] });
+  let proxy = ArrayProxy.create({ content: A([1]) });
 
   proxy.addArrayObserver({
-    arrayWillChange(proxy) {
-      assert.deepEqual(proxy.toArray(), []);
+    arrayWillChange(proxy, startIdx, removeAmt, addAmt) {
+      assert.deepEqual(proxy.toArray(), [1]);
+      assert.deepEqual([startIdx, removeAmt, addAmt], [0, 1, -1]);
     },
-    arrayDidChange(proxy) {
+    arrayDidChange(proxy, startIdx, removeAmt, addAmt) {
       assert.deepEqual(proxy.toArray(), ['a', 'b', 'c']);
+      assert.deepEqual([startIdx, removeAmt, addAmt], [0, -1, 3]);
     }
   });
 
@@ -39,20 +43,22 @@ QUnit.test('addArrayObserver works correctly when setting a new content', functi
 });
 
 QUnit.test('addArrayObserver with custom arrangedContent works correctly', function(assert) {
-  assert.expect(2);
+  assert.expect(4);
 
   let proxy = ArrayProxy.extend({
     arrangedContent: computed('content.[]', function() {
       return this.get('content').slice().reverse();
     })
-  }).create({ content: A() });
+  }).create({ content: A([1]) });
 
   proxy.addArrayObserver({
-    arrayWillChange(proxy) {
-      assert.deepEqual(proxy.toArray(), []);
+    arrayWillChange(proxy, startIdx, removeAmt, addAmt) {
+      assert.deepEqual(proxy.toArray(), [1]);
+      assert.deepEqual([startIdx, removeAmt, addAmt], [0, 1, -1]);
     },
-    arrayDidChange(proxy) {
-      assert.deepEqual(proxy.toArray(), ['c', 'b', 'a']);
+    arrayDidChange(proxy, startIdx, removeAmt, addAmt) {
+      assert.deepEqual(proxy.toArray(), [1, 'c', 'b', 'a']);
+      assert.deepEqual([startIdx, removeAmt, addAmt], [0, -1, 4]);
     }
   });
 

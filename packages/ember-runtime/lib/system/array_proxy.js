@@ -123,22 +123,12 @@ export default EmberObject.extend(MutableArray, {
     get(this, 'content').replace(idx, amt, objects);
   },
 
-  _arrangedContentWillChange: _beforeObserver('arrangedContent', function() {
-    let arrangedContent = get(this, 'arrangedContent');
-    let len = arrangedContent ? get(arrangedContent, 'length') : 0;
-
-    this.arrangedContentArrayWillChange(this, 0, len, undefined);
-
-    this._teardownArrangedContent(arrangedContent);
-  }),
-
   _arrangedContentDidChange: observer('arrangedContent', function() {
-    let arrangedContent = get(this, 'arrangedContent');
-    let len = arrangedContent ? get(arrangedContent, 'length') : 0;
+    this.arrangedContentArrayWillChange(this, 0, get(this._arrangedContent, 'length') || 0, undefined);
+    this._teardownArrangedContent();
 
     this._setupArrangedContent();
-
-    this.arrangedContentArrayDidChange(this, 0, undefined, len);
+    this.arrangedContentArrayDidChange(this, 0, undefined, get(this._arrangedContent, 'length') || 0);
   }),
 
   _setupArrangedContent() {
@@ -149,6 +139,8 @@ export default EmberObject.extend(MutableArray, {
       assert(`ArrayProxy expects an Array or Ember.ArrayProxy, but you passed ${typeof arrangedContent}`,
         isArray(arrangedContent) || arrangedContent.isDestroyed);
 
+      this._arrangedContent = arrangedContent;
+
       addArrayObserver(arrangedContent, this, {
         willChange: 'arrangedContentArrayWillChange',
         didChange: 'arrangedContentArrayDidChange'
@@ -157,10 +149,8 @@ export default EmberObject.extend(MutableArray, {
   },
 
   _teardownArrangedContent() {
-    let arrangedContent = get(this, 'arrangedContent');
-
-    if (arrangedContent) {
-      removeArrayObserver(arrangedContent, this, {
+    if (this._arrangedContent) {
+      removeArrayObserver(this._arrangedContent, this, {
         willChange: 'arrangedContentArrayWillChange',
         didChange: 'arrangedContentArrayDidChange'
       });
@@ -295,6 +285,7 @@ export default EmberObject.extend(MutableArray, {
 
   init() {
     this._super(...arguments);
+    this._arrangedContent = null;
     this._setupArrangedContent();
   },
 

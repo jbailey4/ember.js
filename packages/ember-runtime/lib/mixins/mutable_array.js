@@ -12,7 +12,9 @@ const EMPTY = [];
 
 import {
   get,
-  Mixin
+  Mixin,
+  beginPropertyChanges,
+  endPropertyChanges
 } from 'ember-metal';
 import EmberArray, { objectAt } from './array';
 import MutableEnumerable from './mutable_enumerable';
@@ -369,6 +371,23 @@ export default Mixin.create(EmberArray, MutableEnumerable, {
   },
 
   /**
+    Removes each object in the passed array from the receiver.
+
+    @method removeObjects
+    @param {EmberArray} objects the objects to remove
+    @return {EmberArray} receiver
+    @public
+  */
+  removeObjects(objects) {
+    beginPropertyChanges(this);
+    for (let i = objects.length - 1; i >= 0; i--) {
+      this.removeObject(objects[i]);
+    }
+    endPropertyChanges(this);
+    return this;
+  },
+
+  /**
     Push the object onto the end of the array if it is not already
     present in the array.
 
@@ -391,6 +410,21 @@ export default Mixin.create(EmberArray, MutableEnumerable, {
       this.pushObject(obj);
     }
 
+    return this;
+  },
+
+  /**
+    Adds each object in the passed array to the receiver.
+
+    @method addObjects
+    @param {EmberArray} objects the objects to add.
+    @return {EmberData} receiver
+    @public
+  */
+  addObjects(objects) {
+    beginPropertyChanges(this);
+    objects.forEach(obj => this.addObject(obj));
+    endPropertyChanges(this);
     return this;
   }
 });
